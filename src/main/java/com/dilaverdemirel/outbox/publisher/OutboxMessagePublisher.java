@@ -23,7 +23,7 @@ import java.util.UUID;
  * @since 10.05.2020
  */
 public class OutboxMessagePublisher {
-    private final static ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private final BinderAwareChannelResolver channelResolver;
     private final OutboxMessageRepository outboxMessageRepository;
 
