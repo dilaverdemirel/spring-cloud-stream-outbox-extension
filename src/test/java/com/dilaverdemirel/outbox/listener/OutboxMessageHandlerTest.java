@@ -1,8 +1,10 @@
-package com.dilaverdemirel.outbox.publisher;
+package com.dilaverdemirel.outbox.listener;
 
 import com.dilaverdemirel.outbox.domain.OutboxMessage;
+import com.dilaverdemirel.outbox.domain.OutboxMessageStatus;
 import com.dilaverdemirel.outbox.dto.DummyMessagePayload;
 import com.dilaverdemirel.outbox.dto.OutboxMessageEvent;
+import com.dilaverdemirel.outbox.dto.OutboxMessageEventMetaData;
 import com.dilaverdemirel.outbox.exception.OutboxMessageValidationException;
 import com.dilaverdemirel.outbox.repository.OutboxMessageRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,9 +16,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.cloud.stream.binding.BinderAwareChannelResolver;
-import org.springframework.messaging.Message;
-import org.springframework.messaging.MessageChannel;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.io.IOException;
 import java.util.stream.Stream;
@@ -24,6 +24,7 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -32,20 +33,17 @@ import static org.mockito.Mockito.when;
  * @since 10.05.2020
  */
 @ExtendWith(MockitoExtension.class)
-class OutboxMessagePublisherTest {
+class OutboxMessageHandlerTest {
     private final static ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
-    @Mock
-    private static MessageChannel messageChannel;
-
-    @Mock
-    private BinderAwareChannelResolver channelResolver;
 
     @Mock
     private OutboxMessageRepository outboxMessageRepository;
 
+    @Mock
+    private ApplicationEventPublisher applicationEventPublisher;
+
     @InjectMocks
-    private OutboxMessagePublisher outboxMessagePublisher;
+    private OutboxMessageHandler outboxMessageHandler;
 
     private static Stream<OutboxMessageEvent> provideEventsForValidationException() {
         return Stream.of(
@@ -62,51 +60,29 @@ class OutboxMessagePublisherTest {
 
     @ParameterizedTest
     @MethodSource("provideEventsForValidationException")
-    public void testOnOutboxMessageSent_it_should_throw_validation_exception_when_any_field_of_event_is_empty(OutboxMessageEvent event) {
+    public void testOnOutboxMessageCreate_it_should_throw_validation_exception_when_any_field_of_event_is_empty(OutboxMessageEvent event) {
         final OutboxMessageValidationException exception =
                 assertThrows(
                         OutboxMessageValidationException.class,
-                        () -> outboxMessagePublisher.onOutboxMessageSent(event));
+                        () -> outboxMessageHandler.onOutboxMessageCreate(event));
         assertEquals("Please enter all fields data for outbox message send!", exception.getMessage());
     }
 
     @Test
-    public void testOnOutboxMessageSent_it_should_send_message_when_event_is_valid() throws IOException {
+    public void testOnOutboxMessageCreate_it_should_save_and_publish_meta_event_message_when_event_is_valid() throws IOException {
         //Given
         final var messagePayload = getDummyMessagePayload();
         final var outboxMessageEvent = getOutboxMessageEvent(messagePayload);
-
-        when(channelResolver.resolveDestination(outboxMessageEvent.getChannel()))
-                .thenReturn(messageChannel);
-
-        //When
-        outboxMessagePublisher.onOutboxMessageSent(outboxMessageEvent);
-
-        //Then
-        verify(channelResolver).resolveDestination(outboxMessageEvent.getChannel());
-
-        final var eventArgumentCaptor = ArgumentCaptor.forClass(Message.class);
-        verify(messageChannel).send(eventArgumentCaptor.capture());
-        final var payloadString = (String) eventArgumentCaptor.getValue().getPayload();
-        final var capturedDummyMessagePayload = OBJECT_MAPPER.readValue(payloadString, DummyMessagePayload.class);
-        assertThat(capturedDummyMessagePayload)
-                .isEqualToComparingFieldByField(messagePayload);
-    }
-
-    @Test
-    public void testOnOutboxMessageSent_it_should_save_message_when_any_exception_occurred() throws IOException {
-        //Given
-        final var messagePayload = getDummyMessagePayload();
-        final var outboxMessageEvent = getOutboxMessageEvent(messagePayload);
-
-        when(channelResolver.resolveDestination(outboxMessageEvent.getChannel())).thenThrow(new RuntimeException());
+        final var mockOutboxMessage = OutboxMessage.builder().id("message-1").build();
+        when(outboxMessageRepository.save(any(OutboxMessage.class))).thenReturn(mockOutboxMessage);
 
         //When
-        outboxMessagePublisher.onOutboxMessageSent(outboxMessageEvent);
+        outboxMessageHandler.onOutboxMessageCreate(outboxMessageEvent);
 
         //Then
-        verify(channelResolver).resolveDestination(outboxMessageEvent.getChannel());
-
+        final var publishedEventArgumentCaptor = ArgumentCaptor.forClass(OutboxMessageEventMetaData.class);
+        verify(applicationEventPublisher).publishEvent(publishedEventArgumentCaptor.capture());
+        assertThat(publishedEventArgumentCaptor.getValue().getMessageId()).isEqualTo(mockOutboxMessage.getId());
 
         final var savedMessageArgumentCaptor = ArgumentCaptor.forClass(OutboxMessage.class);
         verify(outboxMessageRepository).save(savedMessageArgumentCaptor.capture());
@@ -114,11 +90,19 @@ class OutboxMessagePublisherTest {
         final var messagePayloadJson = OBJECT_MAPPER.writeValueAsString(messagePayload);
         final var capturedMessageSaveValue = savedMessageArgumentCaptor.getValue();
         assertThat(capturedMessageSaveValue)
-                .isEqualToIgnoringGivenFields(outboxMessageEvent, "id", "payload", "status");
+                .isEqualToIgnoringGivenFields(outboxMessageEvent,
+                        "id",
+                        "payload",
+                        "status",
+                        "messageClass",
+                        "createdAt",
+                        "sentAt");
 
         assertThat(capturedMessageSaveValue.getId()).isNotBlank();
-        assertThat(capturedMessageSaveValue.getStatus()).isEqualTo(OutboxMessage.Status.NEW);
+        assertThat(capturedMessageSaveValue.getStatus()).isEqualTo(OutboxMessageStatus.NEW);
         assertThat(capturedMessageSaveValue.getPayload()).isEqualTo(messagePayloadJson);
+        assertThat(capturedMessageSaveValue.getCreatedAt()).isNotNull();
+        assertThat(capturedMessageSaveValue.getMessageClass()).isEqualTo(DummyMessagePayload.class.getName());
     }
 
     private OutboxMessageEvent getOutboxMessageEvent(DummyMessagePayload messagePayload) {

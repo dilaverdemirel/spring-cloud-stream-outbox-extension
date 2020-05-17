@@ -1,24 +1,16 @@
-name: Master Branch
+name: Java CI
 
-on:
-  push:
-    - 'master'
+on: [push]
 
 jobs:
-
-  test:
-    name: Unit Test
-    runs-on: ubuntu-18.04
+  build:
+    runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - name: Set up JDK 11
-        uses: actions/setup-java@v1
+        uses: xlui/action-maven-cli/jdk11@master
         with:
-          java-version: 1.11
-      - name: Maven Package
-        run: mvn -B clean package -DskipTests
-      - name: Maven Verify
-        run: mvn -B clean verify
-      - name: Maven test
-        run: mvn -B test
+          java-version: 11
+      - name: Build with Maven
+        run: mvn -B package --file pom.xml

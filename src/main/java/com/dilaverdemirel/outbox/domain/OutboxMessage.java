@@ -1,8 +1,11 @@
 package com.dilaverdemirel.outbox.domain;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.ToString;
 
 import javax.persistence.Column;
@@ -11,40 +14,53 @@ import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
 import javax.persistence.Id;
 import javax.persistence.Lob;
+import javax.persistence.Temporal;
+import javax.persistence.TemporalType;
 import java.io.Serializable;
+import java.util.Date;
 
 /**
  * @author dilaverdemirel
  * @since 10.05.2020
  */
 @Getter
+@Setter
 @Builder
 @ToString
 @EqualsAndHashCode(of = "id")
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
 public class OutboxMessage implements Serializable {
     @Id
     @Column(nullable = false)
-    private final String id;
+    private String id;
 
     @Column(nullable = false)
-    private final String source;
+    private String source;
 
     @Column(nullable = false)
-    private final String sourceId;
+    private String sourceId;
 
     @Column(nullable = false)
-    private final String channel;
+    private String channel;
 
     @Lob
     @Column(nullable = false)
-    private final String payload;
+    private String payload;
 
     @Column(length = 6, nullable = false)
     @Enumerated(EnumType.STRING)
-    private final Status status;
+    private OutboxMessageStatus status;
 
-    public enum Status {
-        NEW, FAILED, SENT
-    }
+    @Column(nullable = false)
+    private String messageClass;
+
+    @Column(nullable = false)
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date createdAt;
+
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date sentAt;
+
 }
