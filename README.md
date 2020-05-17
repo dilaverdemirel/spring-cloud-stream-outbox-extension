@@ -1,1 +1,2 @@
 [![codecov](https://codecov.io/gh/dilaverdemirel/spring-cloud-stream-outbox-extension/branch/master/graph/badge.svg?token=107NB0GV86)](https://codecov.io/gh/dilaverdemirel/spring-cloud-stream-outbox-extension)
+![](https://github.com/dilaverdemirel/spring-cloud-stream-outbox-extension/workflows/Java%20CI/badge.svg)
