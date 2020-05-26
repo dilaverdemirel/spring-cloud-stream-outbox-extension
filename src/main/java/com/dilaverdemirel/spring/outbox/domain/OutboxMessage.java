@@ -17,7 +17,7 @@ import javax.persistence.Lob;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
 import java.io.Serializable;
-import java.util.Date;
+import java.time.LocalDateTime;
 
 /**
  * @author dilaverdemirel
@@ -58,9 +58,9 @@ public class OutboxMessage implements Serializable {
 
     @Column(nullable = false)
     @Temporal(TemporalType.TIMESTAMP)
-    private Date createdAt;
+    private LocalDateTime createdAt;
 
     @Temporal(TemporalType.TIMESTAMP)
-    private Date sentAt;
+    private LocalDateTime sentAt;
 
 }

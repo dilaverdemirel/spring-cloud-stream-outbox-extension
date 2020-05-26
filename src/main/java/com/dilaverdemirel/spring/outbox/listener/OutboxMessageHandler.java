@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-import java.util.Date;
+import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -48,7 +48,7 @@ public class OutboxMessageHandler {
                 .sourceId(outboxMessageEvent.getSourceId())
                 .channel(outboxMessageEvent.getChannel())
                 .payload(convertToJson(outboxMessageEvent.getPayload()))
-                .createdAt(new Date())
+                .createdAt(LocalDateTime.now())
                 .messageClass(outboxMessageEvent.getPayload().getClass().getName())
                 .status(OutboxMessageStatus.NEW).build();
 

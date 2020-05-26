@@ -12,7 +12,8 @@ import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Date;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 /**
  * @author dilaverdemirel
@@ -51,6 +52,12 @@ public class OutboxMessagePublisherServiceImpl implements OutboxMessagePublisher
         final var pageRequest = PageRequest.of(0, QUERY_RESULT_PAGE_SIZE, Sort.Direction.ASC, "createdAt");
         final var failedOutboxMessages = outboxMessageRepository.findByStatus(OutboxMessageStatus.FAILED, pageRequest);
         failedOutboxMessages.forEach(message -> sendAndMarkAsSent(message));
+
+        final var messagesThatCouldNotBeSent = outboxMessageRepository.findMessagesThatCouldNotBeSent(
+                LocalDateTime.now().minus(QUERY_DELAY_FOR_MESSAGE_THAT_COULD_NOT_BE_SENT, ChronoUnit.SECONDS),
+                pageRequest);
+
+        messagesThatCouldNotBeSent.forEach(message -> sendAndMarkAsSent(message));
     }
 
     private void sendAndMarkAsSent(OutboxMessage outboxMessage) {
@@ -58,7 +65,7 @@ public class OutboxMessagePublisherServiceImpl implements OutboxMessagePublisher
                 .send(MessageBuilder.withPayload(outboxMessage.getPayload()).build());
 
         outboxMessage.setStatus(OutboxMessageStatus.SENT);
-        outboxMessage.setSentAt(new Date());
+        outboxMessage.setSentAt(LocalDateTime.now());
         outboxMessageRepository.save(outboxMessage);
     }
 }

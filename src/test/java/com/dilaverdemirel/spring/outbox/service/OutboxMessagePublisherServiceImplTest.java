@@ -21,9 +21,14 @@ import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
+import static com.dilaverdemirel.spring.outbox.service.OutboxMessagePublisherService.QUERY_DELAY_FOR_MESSAGE_THAT_COULD_NOT_BE_SENT;
 import static com.dilaverdemirel.spring.outbox.service.OutboxMessagePublisherService.QUERY_RESULT_PAGE_SIZE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -87,16 +92,16 @@ public class OutboxMessagePublisherServiceImplTest {
     @Test
     public void testPublishAllFailedMessages_it_should_publish_when_there_are_some_failed_messages() throws IOException {
         //Given
-        final var outboxMessages = Arrays.asList(
-                getOutboxMessage(1),
-                getOutboxMessage(2),
-                getOutboxMessage(3));
+        final List<OutboxMessage> outboxMessages = getOutboxMessages();
 
         final var outboxMessagePage = new PageImpl<>(outboxMessages);
         when(outboxMessageRepository.findByStatus(any(OutboxMessageStatus.class), any(Pageable.class))).thenReturn(outboxMessagePage);
 
         when(channelResolver.resolveDestination(anyString()))
                 .thenReturn(messageChannel);
+
+        when(outboxMessageRepository.findMessagesThatCouldNotBeSent(any(LocalDateTime.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(Collections.emptyList()));
 
         //When
         outboxMessagePublisherService.publishAllFailedMessages();
@@ -119,6 +124,58 @@ public class OutboxMessagePublisherServiceImplTest {
                 .containsOnly(new Sort.Order(Sort.Direction.ASC, "createdAt"));
 
         //Send and save verification
+        validateSentMessages(outboxMessages);
+    }
+
+    @Test
+    public void testPublishAllFailedMessages_it_should_publish_when_there_are_some_messages_could_not_be_sent() throws IOException {
+        //Given
+        final List<OutboxMessage> outboxMessages = getOutboxMessages();
+
+        final var outboxMessagePage = new PageImpl<OutboxMessage>(Collections.emptyList());
+        when(outboxMessageRepository.findByStatus(any(OutboxMessageStatus.class), any(Pageable.class))).thenReturn(outboxMessagePage);
+
+        final var outboxMessagePageThatNotSent = new PageImpl<>(outboxMessages);
+        when(outboxMessageRepository.findMessagesThatCouldNotBeSent(any(LocalDateTime.class), any(Pageable.class)))
+                .thenReturn(outboxMessagePageThatNotSent);
+
+        when(channelResolver.resolveDestination(anyString()))
+                .thenReturn(messageChannel);
+
+        //When
+        outboxMessagePublisherService.publishAllFailedMessages();
+
+        //Then
+
+        //Find verification
+        verify(outboxMessageRepository).findByStatus(any(OutboxMessageStatus.class), any(Pageable.class));
+
+        final var delayStartForFindArgumentCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+        final var pageableForFindArgumentCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(outboxMessageRepository)
+                .findMessagesThatCouldNotBeSent(
+                        delayStartForFindArgumentCaptor.capture(),
+                        pageableForFindArgumentCaptor.capture());
+
+        assertThat(delayStartForFindArgumentCaptor.getValue()).isNotNull().isBetween(
+                LocalDateTime.now().minus(QUERY_DELAY_FOR_MESSAGE_THAT_COULD_NOT_BE_SENT + 15, ChronoUnit.SECONDS),
+                LocalDateTime.now());
+
+        Assertions.assertThat(pageableForFindArgumentCaptor.getValue())
+                .isNotNull()
+                .hasFieldOrPropertyWithValue("pageSize", QUERY_RESULT_PAGE_SIZE)
+                .hasFieldOrPropertyWithValue("pageNumber", 0);
+
+        Assertions.assertThat(pageableForFindArgumentCaptor.getValue().getSort())
+                .isNotNull()
+                .containsOnly(new Sort.Order(Sort.Direction.ASC, "createdAt"));
+
+        //Send and save verification
+        validateSentMessages(outboxMessages);
+
+    }
+
+    private void validateSentMessages(List<OutboxMessage> outboxMessages) {
         final var sentMessagesArgumentCaptor = ArgumentCaptor.forClass(Message.class);
         verify(messageChannel, times(3)).send(sentMessagesArgumentCaptor.capture());
         final var sentMessagesArgumentCaptorAllValues = sentMessagesArgumentCaptor.getAllValues();
@@ -140,7 +197,13 @@ public class OutboxMessagePublisherServiceImplTest {
             assertThat(savedMessagesArgumentCaptor.getValue().getStatus()).isEqualTo(OutboxMessageStatus.SENT);
             assertThat(savedMessagesArgumentCaptor.getValue().getSentAt()).isNotNull();
         }
+    }
 
+    private List<OutboxMessage> getOutboxMessages() {
+        return Arrays.asList(
+                getOutboxMessage(1),
+                getOutboxMessage(2),
+                getOutboxMessage(3));
     }
 
     private OutboxMessage getOutboxMessage(int contentIndex) {
