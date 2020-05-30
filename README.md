@@ -3,6 +3,8 @@
 
 # Spring Cloud Stream Outbox Extension
 
+![](docs/resources/logo.png)
+
 This library provides an extension if you already use spring cloud stream with the transactional database for application messaging. 
 This extension provides transactional messaging. It prevents message lost. If the transaction is succeed, it publishes the message to binder. 
 
@@ -20,6 +22,14 @@ There are three steps;
 You can see sequence diagram below.
 
 ![Sequence diagram](docs/resources/outbox-extension-diagram.png)
+
+## What does do this extension?
+
+- Sends the message on time safely
+- Sends the messages in transactional integrity
+- Saves all messages and tracks the message statuses
+- Resend the failed messages
+- Prevents the message lost 
 
 ## Usage
 
@@ -94,3 +104,10 @@ public class DemoApplication {
     }    
 }
 ``` 
+
+## Example Application
+If you want to see how is work, there is an [example application](https://github.com/dilaverdemirel/trendyol-scheduler-service).
+
+#### Notes
+
+Logo [source](https://logodust.com/)
