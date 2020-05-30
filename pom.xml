@@ -177,4 +177,12 @@
         </plugins>
     </build>
 
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/dilaverdemirel/spring-cloud-stream-outbox-extension</url>
+        </repository>
+    </distributionManagement>
+
 </project>
