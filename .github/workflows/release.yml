@@ -16,9 +16,9 @@ jobs:
         with:
           java-version: 11
       - name: Publish package
-          run: mvn -B deploy
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mvn -B deploy
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Create Release
           id: create_release
           uses: actions/create-release@v1
