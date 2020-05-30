@@ -105,8 +105,26 @@ public class DemoApplication {
 }
 ``` 
 
+If you want to manage saved messages, you can use **OutboxMessageRepository** repository.
+```java
+@RestController
+@RequestMapping(path = "/outbox-messages")
+public class OutboxMessageController {
+    private final OutboxMessageRepository outboxMessageRepository;
+
+    public OutboxMessageController(OutboxMessageRepository outboxMessageRepository) {
+        this.outboxMessageRepository = outboxMessageRepository;
+    }
+
+    @GetMapping
+    public ResponseEntity<Iterable<OutboxMessage>> getAll() {
+        return new ResponseEntity<>(outboxMessageRepository.findAll(), HttpStatus.OK);
+    }
+}
+```
+
 ## Example Application
-If you want to see how is work, there is an [example application](https://github.com/dilaverdemirel/trendyol-scheduler-service).
+If you want to see how is work, there is an [example application](https://github.com/dilaverdemirel/spring-cloud-stream-outbox-extension-example).
 
 #### Notes
 

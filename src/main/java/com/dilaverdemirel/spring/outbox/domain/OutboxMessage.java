@@ -14,8 +14,6 @@ import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
 import javax.persistence.Id;
 import javax.persistence.Lob;
-import javax.persistence.Temporal;
-import javax.persistence.TemporalType;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
@@ -57,10 +55,8 @@ public class OutboxMessage implements Serializable {
     private String messageClass;
 
     @Column(nullable = false)
-    @Temporal(TemporalType.TIMESTAMP)
     private LocalDateTime createdAt;
 
-    @Temporal(TemporalType.TIMESTAMP)
     private LocalDateTime sentAt;
 
 }
