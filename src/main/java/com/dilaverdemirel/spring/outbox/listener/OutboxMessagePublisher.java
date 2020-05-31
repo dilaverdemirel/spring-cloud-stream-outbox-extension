@@ -3,7 +3,6 @@ package com.dilaverdemirel.spring.outbox.listener;
 import com.dilaverdemirel.spring.outbox.dto.OutboxMessageEventMetaData;
 import com.dilaverdemirel.spring.outbox.service.OutboxMessagePublisherService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,8 +23,7 @@ public class OutboxMessagePublisher {
         this.outboxMessagePublisherService = outboxMessagePublisherService;
     }
 
-    @EventListener(OutboxMessageEventMetaData.class)
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(classes = {OutboxMessageEventMetaData.class}, phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onOutboxMessageSave(OutboxMessageEventMetaData outboxMessageEventMetaData) {
         log.debug("Outbox message is publishing, meta data is {}", outboxMessageEventMetaData);

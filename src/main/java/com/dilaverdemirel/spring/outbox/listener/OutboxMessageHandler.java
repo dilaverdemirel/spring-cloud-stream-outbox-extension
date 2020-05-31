@@ -7,7 +7,6 @@ import com.dilaverdemirel.spring.outbox.dto.OutboxMessageEventMetaData;
 import com.dilaverdemirel.spring.outbox.exception.OutboxMessageValidationException;
 import com.dilaverdemirel.spring.outbox.repository.OutboxMessageRepository;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -33,8 +32,7 @@ public class OutboxMessageHandler {
         this.applicationEventPublisher = applicationEventPublisher;
     }
 
-    @EventListener(OutboxMessageEvent.class)
-    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    @TransactionalEventListener(classes = {OutboxMessageEvent.class}, phase = TransactionPhase.BEFORE_COMMIT)
     public void onOutboxMessageCreate(OutboxMessageEvent outboxMessageEvent) {
         validateOutboxMessage(outboxMessageEvent);
         final var savedOutboxMessage = saveMessage(outboxMessageEvent);

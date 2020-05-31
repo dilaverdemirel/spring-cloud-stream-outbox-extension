@@ -31,7 +31,7 @@ You can see sequence diagram below.
 - Resend the failed messages
 - Prevents the message lost 
 
-## Usage
+## Installation and Usage
 
 You should add the dependency below to pom.xml file.
 ```xml
@@ -60,6 +60,56 @@ public class DemoApplication {
         SpringApplication.run(DemoApplication.class, args);
     }
 }
+```
+
+After that if you don't use auto ddl, you should create **OUTBOX_TABLE** in your db. You can use script below;
+```sql
+CREATE TABLE outbox_message 
+  ( 
+     id            VARCHAR(255) NOT NULL, 
+     channel       VARCHAR(255) NOT NULL, 
+     created_at    TIMESTAMP NOT NULL, 
+     message_class VARCHAR(255) NOT NULL, 
+     payload       CLOB NOT NULL, 
+     sent_at       TIMESTAMP, 
+     source        VARCHAR(255) NOT NULL, 
+     source_id     VARCHAR(255) NOT NULL, 
+     status        VARCHAR(6) NOT NULL, 
+     PRIMARY KEY (id) 
+  ) 
+``` 
+
+If you use liquibase, you can use xml below;
+```xml
+<createTable tableName="outbox_message">
+    <column name="id" type="VARCHAR(10)">
+        <constraints primaryKey="true"/>
+    </column>
+    <column name="channel" type="VARCHAR(36)">
+        <constraints nullable="false"/>
+    </column>
+    <column name="created_at" type="datetime">
+        <constraints nullable="false"/>
+    </column>
+    <column name="sent_at" type="datetime">
+        <constraints nullable="false"/>
+    </column>
+    <column name="message_class" type="VARCHAR(255)">
+        <constraints nullable="false"/>
+    </column>
+    <column name="payload" type="CLOB">
+        <constraints nullable="false"/>
+    </column>
+    <column name="source" type="VARCHAR(255)">
+        <constraints nullable="false"/>
+    </column>
+    <column name="source_id" type="VARCHAR(255)">
+        <constraints nullable="false"/>
+    </column>
+    <column name="status" type="VARCHAR(6)">
+        <constraints nullable="false"/>
+    </column>
+</createTable>
 ```
 
 And then, you can send a message in transaction like below
