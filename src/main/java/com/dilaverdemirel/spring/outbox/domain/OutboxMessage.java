@@ -57,6 +57,12 @@ public class OutboxMessage implements Serializable {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
+    @Column(nullable = false)
+    private Integer retryCount;
+
+    @Column
+    private String statusMessage;
+
     private LocalDateTime sentAt;
 
 }

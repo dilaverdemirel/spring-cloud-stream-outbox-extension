@@ -16,6 +16,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import static com.dilaverdemirel.spring.outbox.util.JsonUtil.convertToJson;
+import static com.dilaverdemirel.spring.outbox.util.StringUtils.isBlank;
 
 /**
  * @author dilaverdemirel
@@ -48,6 +49,7 @@ public class OutboxMessageHandler {
                 .payload(convertToJson(outboxMessageEvent.getPayload()))
                 .createdAt(LocalDateTime.now())
                 .messageClass(outboxMessageEvent.getPayload().getClass().getName())
+                .retryCount(-1)
                 .status(OutboxMessageStatus.NEW).build();
 
         return outboxMessageRepository.save(outboxMessage);
@@ -61,11 +63,5 @@ public class OutboxMessageHandler {
         ) {
             throw new OutboxMessageValidationException("Please enter all fields data for outbox message send!");
         }
-    }
-
-    private boolean isBlank(String data) {
-        return Objects.isNull(data) ||
-                data.equals("") ||
-                data.equals(" ");
     }
 }

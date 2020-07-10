@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
  */
 @Repository
 public interface OutboxMessageRepository extends CrudRepository<OutboxMessage, String> {
-    Page<OutboxMessage> findByStatus(OutboxMessageStatus status, Pageable pageRequest);
+    Page<OutboxMessage> findByStatusAndRetryCountLessThanEqual(OutboxMessageStatus status, Integer retryCount, Pageable pageRequest);
 
     @Query("select m from OutboxMessage as m where m.createdAt <= :delayStart and m.status = 'NEW'")
     Page<OutboxMessage> findMessagesThatCouldNotBeSent(@Param("delayStart") LocalDateTime delayStart, Pageable pageRequest);

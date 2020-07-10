@@ -96,13 +96,16 @@ class OutboxMessageHandlerTest {
                         "status",
                         "messageClass",
                         "createdAt",
-                        "sentAt");
+                        "sentAt",
+                        "retryCount",
+                        "statusMessage");
 
         assertThat(capturedMessageSaveValue.getId()).isNotBlank();
         assertThat(capturedMessageSaveValue.getStatus()).isEqualTo(OutboxMessageStatus.NEW);
         assertThat(capturedMessageSaveValue.getPayload()).isEqualTo(messagePayloadJson);
         assertThat(capturedMessageSaveValue.getCreatedAt()).isNotNull();
         assertThat(capturedMessageSaveValue.getMessageClass()).isEqualTo(DummyMessagePayload.class.getName());
+        assertThat(capturedMessageSaveValue.getRetryCount()).isEqualTo(-1);
     }
 
     private OutboxMessageEvent getOutboxMessageEvent(DummyMessagePayload messagePayload) {

@@ -38,7 +38,7 @@ You should add the dependency below to pom.xml file.
 <dependency>
   <groupId>com.dilaverdemirel.spring</groupId>
   <artifactId>spring-cloud-stream-outbox-extension</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
 </dependency>
 ```
 
@@ -66,15 +66,17 @@ After that if you don't use auto ddl, you should create **OUTBOX_TABLE** in your
 ```sql
 CREATE TABLE outbox_message 
   ( 
-     id            VARCHAR(255) NOT NULL, 
-     channel       VARCHAR(255) NOT NULL, 
-     created_at    TIMESTAMP NOT NULL, 
-     message_class VARCHAR(255) NOT NULL, 
-     payload       CLOB NOT NULL, 
-     sent_at       TIMESTAMP, 
-     source        VARCHAR(255) NOT NULL, 
-     source_id     VARCHAR(255) NOT NULL, 
-     status        VARCHAR(6) NOT NULL, 
+     id             VARCHAR(255) NOT NULL, 
+     channel        VARCHAR(255) NOT NULL, 
+     created_at     TIMESTAMP NOT NULL, 
+     message_class  VARCHAR(255) NOT NULL, 
+     payload        CLOB NOT NULL, 
+     sent_at        TIMESTAMP, 
+     source         VARCHAR(255) NOT NULL, 
+     source_id      VARCHAR(255) NOT NULL, 
+     status         VARCHAR(6) NOT NULL,
+     retry_count    INT(3) NOT NULL,
+     status_message CLOB,
      PRIMARY KEY (id) 
   ) 
 ``` 
@@ -82,7 +84,7 @@ CREATE TABLE outbox_message
 If you use liquibase, you can use xml below;
 ```xml
 <createTable tableName="outbox_message">
-    <column name="id" type="VARCHAR(10)">
+    <column name="id" type="VARCHAR(36)">
         <constraints primaryKey="true"/>
     </column>
     <column name="channel" type="VARCHAR(36)">
@@ -109,6 +111,10 @@ If you use liquibase, you can use xml below;
     <column name="status" type="VARCHAR(6)">
         <constraints nullable="false"/>
     </column>
+    <column name="retry_count" type="INT(3)">
+        <constraints nullable="false"/>
+    </column>
+    <column name="status_message" type="CLOB"/>
 </createTable>
 ```
 
@@ -144,6 +150,11 @@ You can resend the failed messages with FailedOutboxMessageSchedulerService, but
 
 At this point, you should be careful. Because, if your application running as multiple instance, this job causes that message to be sent duplicate.
 To solve this problem, you should use a distributed scheduler like [that](https://github.com/dilaverdemirel/trendyol-scheduler-service).
+
+There is a parameter for retry threshold. 
+
+**dilaverdemirel.spring.outbox.failed-messages.retry-count-threshold=3**
+
 ```java
 @Configuration
 @EnableScheduling
@@ -153,6 +164,7 @@ public class DemoApplication {
         return new FailedOutboxMessageSchedulerService();
     }    
 }
+
 ``` 
 
 If you want to manage saved messages, you can use **OutboxMessageRepository** repository.
@@ -169,6 +181,31 @@ public class OutboxMessageController {
     @GetMapping
     public ResponseEntity<Iterable<OutboxMessage>> getAll() {
         return new ResponseEntity<>(outboxMessageRepository.findAll(), HttpStatus.OK);
+    }
+}
+```
+
+### Dead Letter Support
+If you want to manage dead letters, the extension gives some features. 
+
+```java
+@Autowired
+private FailedOutboxMessageService failedOutboxMessageService;
+
+@Autowired
+private OutboxMessageRepository outboxMessageRepository;
+
+@RabbitListener(queues = DLQ)
+public void handleDLQMessage(Message failedMessage) {
+    final var outboxMessageId = MessageUtils.extractOutboxMessageId(failedMessage);
+    final var exceptionMessage = MessageUtils.extractExceptionStackTrace(failedMessage);
+    failedOutboxMessageService.markAsFailedWithExceptionMessage(outboxMessageId, exceptionMessage);
+
+    final var outboxMessageOpt = outboxMessageRepository.findById(outboxMessageId);
+    if (outboxMessageOpt.isPresent()) {
+        final var outboxMessage = outboxMessageOpt.get();
+        
+        //You can do something use this "outboxMessage.getSourceId()"
     }
 }
 ```
