@@ -3,7 +3,6 @@ package com.dilaverdemirel.spring.outbox.util;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.messaging.support.GenericMessage;
 
 import java.util.Map;
 
@@ -22,10 +21,9 @@ public class MessageUtilsTest {
     public void testExtractOutboxMessageId_it_should_return_message_id_when_message_has_an_id() {
         //Given
         final var messageId = "message-id";
-        final var message = new GenericMessage("payload", Map.of(OUTBOX_MESSAGE_ID_HEADER_PARAMETER_NAME, messageId));
 
         //When
-        final var extractedMessageId = MessageUtils.extractOutboxMessageId(message);
+        final var extractedMessageId = MessageUtils.extractOutboxMessageId(Map.of(OUTBOX_MESSAGE_ID_HEADER_PARAMETER_NAME, messageId));
 
         //Then
         assertEquals(extractedMessageId, messageId);
@@ -34,10 +32,9 @@ public class MessageUtilsTest {
     @Test
     public void testExtractOutboxMessageId_it_should_return_null_when_message_don_t_has_an_id() {
         //Given
-        final var message = new GenericMessage("payload");
 
         //When
-        final var extractedMessageId = MessageUtils.extractOutboxMessageId(message);
+        final var extractedMessageId = MessageUtils.extractOutboxMessageId(Map.of());
 
         //Then
         assertNull(extractedMessageId);
@@ -47,10 +44,10 @@ public class MessageUtilsTest {
     public void testExtractExceptionStackTrace_it_should_return_stack_stace_when_message_has_an_exception() {
         //Given
         final var stackTrace = "stack-trace";
-        final var message = new GenericMessage("payload", Map.of(OUTBOX_MESSAGE_EXCEPTION_HEADER_PARAMETER_NAME, stackTrace));
 
         //When
-        final var extractedMessageId = MessageUtils.extractExceptionStackTrace(message);
+        final var extractedMessageId = MessageUtils
+                .extractExceptionStackTrace(Map.of(OUTBOX_MESSAGE_EXCEPTION_HEADER_PARAMETER_NAME, stackTrace));
 
         //Then
         assertEquals(extractedMessageId, stackTrace);
@@ -59,10 +56,9 @@ public class MessageUtilsTest {
     @Test
     public void testExtractExceptionStackTrace_it_should_return_null_when_message_don_t_has_an_exception() {
         //Given
-        final var message = new GenericMessage("payload");
 
         //When
-        final var extractedMessageId = MessageUtils.extractExceptionStackTrace(message);
+        final var extractedMessageId = MessageUtils.extractExceptionStackTrace(Map.of());
 
         //Then
         assertNull(extractedMessageId);
