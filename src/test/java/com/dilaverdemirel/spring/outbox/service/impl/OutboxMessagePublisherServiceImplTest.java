@@ -5,7 +5,6 @@ import com.dilaverdemirel.spring.outbox.domain.OutboxMessageStatus;
 import com.dilaverdemirel.spring.outbox.dto.DummyMessagePayload;
 import com.dilaverdemirel.spring.outbox.repository.OutboxMessageRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,6 +13,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.cloud.stream.binding.BinderAwareChannelResolver;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -22,14 +22,12 @@ import org.springframework.messaging.MessageChannel;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import static com.dilaverdemirel.spring.outbox.service.OutboxMessagePublisherService.OUTBOX_MESSAGE_ID_HEADER_PARAMETER_NAME;
-import static com.dilaverdemirel.spring.outbox.service.OutboxMessagePublisherService.QUERY_DELAY_FOR_MESSAGE_THAT_COULD_NOT_BE_SENT;
 import static com.dilaverdemirel.spring.outbox.service.OutboxMessagePublisherService.QUERY_RESULT_PAGE_SIZE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -100,19 +98,20 @@ public class OutboxMessagePublisherServiceImplTest {
         assertThat(savedMessageArgumentCaptor.getValue())
                 .isEqualToIgnoringGivenFields(outboxMessageForVerification, "status", "sentAt", "retryCount");
         assertThat(savedMessageArgumentCaptor.getValue().getStatus()).isEqualTo(OutboxMessageStatus.SENT);
-        assertThat(savedMessageArgumentCaptor.getValue().getRetryCount()).isEqualTo(0);
+        assertThat(savedMessageArgumentCaptor.getValue().getRetryCount()).isZero();
         assertThat(savedMessageArgumentCaptor.getValue().getSentAt()).isNotNull();
     }
 
     @Test
-    public void testPublishAllFailedMessages_it_should_publish_when_there_are_some_failed_messages() throws IOException {
+    public void testPublishAllFailedMessages_it_should_publish_when_there_are_some_failed_messages() {
         //Given
         final List<OutboxMessage> outboxMessages = getOutboxMessages();
 
         final var outboxMessagePage = new PageImpl<>(outboxMessages);
         when(outboxMessageRepository
                 .findByStatusAndRetryCountLessThanEqual(any(OutboxMessageStatus.class), any(Integer.class), any(Pageable.class)))
-                .thenReturn(outboxMessagePage);
+                .thenReturn(outboxMessagePage)
+                .thenReturn(Page.empty());
 
         when(channelResolver.resolveDestination(anyString()))
                 .thenReturn(messageChannel);
@@ -129,18 +128,18 @@ public class OutboxMessagePublisherServiceImplTest {
         final var statusForFindArgumentCaptor = ArgumentCaptor.forClass(OutboxMessageStatus.class);
         final var retryCountThresholdAC = ArgumentCaptor.forClass(Integer.class);
         final var pageableForFindArgumentCaptor = ArgumentCaptor.forClass(Pageable.class);
-        verify(outboxMessageRepository)
+        verify(outboxMessageRepository, times(2))
                 .findByStatusAndRetryCountLessThanEqual(statusForFindArgumentCaptor.capture(), retryCountThresholdAC.capture(),
                         pageableForFindArgumentCaptor.capture());
-        assertThat(statusForFindArgumentCaptor.getValue()).isEqualTo(OutboxMessageStatus.FAILED);
+        assertThat(statusForFindArgumentCaptor.getAllValues().get(0)).isEqualTo(OutboxMessageStatus.FAILED);
         assertThat(retryCountThresholdAC.getValue()).isEqualTo(defaultRetryCountThreshold);
 
-        Assertions.assertThat(pageableForFindArgumentCaptor.getValue())
+        assertThat(pageableForFindArgumentCaptor.getAllValues().get(0))
                 .isNotNull()
                 .hasFieldOrPropertyWithValue("pageSize", QUERY_RESULT_PAGE_SIZE)
                 .hasFieldOrPropertyWithValue("pageNumber", 0);
 
-        Assertions.assertThat(pageableForFindArgumentCaptor.getValue().getSort())
+        assertThat(pageableForFindArgumentCaptor.getValue().getSort())
                 .isNotNull()
                 .containsOnly(new Sort.Order(Sort.Direction.ASC, "createdAt"));
 
@@ -153,17 +152,17 @@ public class OutboxMessagePublisherServiceImplTest {
         //Given
         final List<OutboxMessage> outboxMessages = getOutboxMessages();
 
-        final var outboxMessagePage = new PageImpl<OutboxMessage>(Collections.emptyList());
+        final var outboxMessagePage = new PageImpl<>(outboxMessages);
         when(outboxMessageRepository
                 .findByStatusAndRetryCountLessThanEqual(any(OutboxMessageStatus.class), any(Integer.class), any(Pageable.class)))
-                .thenReturn(outboxMessagePage);
-
-        final var outboxMessagePageThatNotSent = new PageImpl<>(outboxMessages);
-        when(outboxMessageRepository.findMessagesThatCouldNotBeSent(any(LocalDateTime.class), any(Pageable.class)))
-                .thenReturn(outboxMessagePageThatNotSent);
+                .thenReturn(Page.empty());
 
         when(channelResolver.resolveDestination(anyString()))
                 .thenReturn(messageChannel);
+
+        when(outboxMessageRepository.findMessagesThatCouldNotBeSent(any(LocalDateTime.class), any(Pageable.class)))
+                .thenReturn(outboxMessagePage)
+                .thenReturn(new PageImpl<>(Collections.emptyList()));
 
         //When
         outboxMessagePublisherService.publishAllFailedMessages();
@@ -171,31 +170,54 @@ public class OutboxMessagePublisherServiceImplTest {
         //Then
 
         //Find verification
-        verify(outboxMessageRepository).findByStatusAndRetryCountLessThanEqual(any(OutboxMessageStatus.class), any(Integer.class), any(Pageable.class));
-
-        final var delayStartForFindArgumentCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+        final var statusForFindArgumentCaptor = ArgumentCaptor.forClass(OutboxMessageStatus.class);
+        final var retryCountThresholdAC = ArgumentCaptor.forClass(Integer.class);
         final var pageableForFindArgumentCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(outboxMessageRepository)
-                .findMessagesThatCouldNotBeSent(
-                        delayStartForFindArgumentCaptor.capture(),
+                .findByStatusAndRetryCountLessThanEqual(statusForFindArgumentCaptor.capture(), retryCountThresholdAC.capture(),
                         pageableForFindArgumentCaptor.capture());
+        assertThat(statusForFindArgumentCaptor.getAllValues().get(0)).isEqualTo(OutboxMessageStatus.FAILED);
+        assertThat(retryCountThresholdAC.getValue()).isEqualTo(defaultRetryCountThreshold);
 
-        assertThat(delayStartForFindArgumentCaptor.getValue()).isNotNull().isBetween(
-                LocalDateTime.now().minus(QUERY_DELAY_FOR_MESSAGE_THAT_COULD_NOT_BE_SENT + 15, ChronoUnit.SECONDS),
-                LocalDateTime.now());
-
-        Assertions.assertThat(pageableForFindArgumentCaptor.getValue())
+        assertThat(pageableForFindArgumentCaptor.getAllValues().get(0))
                 .isNotNull()
                 .hasFieldOrPropertyWithValue("pageSize", QUERY_RESULT_PAGE_SIZE)
                 .hasFieldOrPropertyWithValue("pageNumber", 0);
 
-        Assertions.assertThat(pageableForFindArgumentCaptor.getValue().getSort())
+        assertThat(pageableForFindArgumentCaptor.getValue().getSort())
                 .isNotNull()
                 .containsOnly(new Sort.Order(Sort.Direction.ASC, "createdAt"));
 
         //Send and save verification
         validateSentMessages(outboxMessages);
+    }
 
+    @Test
+    public void testMaintenanceToOutboxMessages_it_should_clear_old_messages() {
+        //Given
+        outboxMessagePublisherService.messageLifetimeInDays = 7;
+        final var outboxMessagePage = new PageImpl<OutboxMessage>(Collections.emptyList());
+        when(outboxMessageRepository
+                .findByStatusAndRetryCountLessThanEqual(any(OutboxMessageStatus.class), any(Integer.class), any(Pageable.class)))
+                .thenReturn(outboxMessagePage);
+
+        when(outboxMessageRepository.findMessagesThatCouldNotBeSent(any(LocalDateTime.class), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        when(outboxMessageRepository.deleteOldOutboxMessages(any())).thenReturn(10L);
+
+        //When
+        outboxMessagePublisherService.maintenanceToOutboxMessages();
+
+        //Then
+        //Find verification
+        verify(outboxMessageRepository).findByStatusAndRetryCountLessThanEqual(any(OutboxMessageStatus.class), any(Integer.class), any(Pageable.class));
+        verify(outboxMessageRepository).findMessagesThatCouldNotBeSent(any(LocalDateTime.class), any(Pageable.class));
+
+        //Send and save verification
+        verify(messageChannel, times(0)).send(any());
+
+        verify(outboxMessageRepository).deleteOldOutboxMessages(any());
     }
 
     private void validateSentMessages(List<OutboxMessage> outboxMessages) {

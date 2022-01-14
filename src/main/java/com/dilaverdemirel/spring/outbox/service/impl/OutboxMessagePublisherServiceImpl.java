@@ -32,6 +32,9 @@ public class OutboxMessagePublisherServiceImpl implements OutboxMessagePublisher
     @Value("${dilaverdemirel.spring.outbox.failed-messages.retry-count-threshold:3}")
     protected Integer retryCountThreshold;
 
+    @Value("${dilaverdemirel.spring.outbox.failed-messages.message-life-time-in-days:7}")
+    protected Integer messageLifetimeInDays;
+
     public OutboxMessagePublisherServiceImpl(OutboxMessageRepository outboxMessageRepository,
                                              BinderAwareChannelResolver channelResolver) {
         this.outboxMessageRepository = outboxMessageRepository;
@@ -54,16 +57,43 @@ public class OutboxMessagePublisherServiceImpl implements OutboxMessagePublisher
     @Transactional
     public void publishAllFailedMessages() {
         log.debug("Failed Outbox messages is publishing again!");
-        final var pageRequest = PageRequest.of(0, QUERY_RESULT_PAGE_SIZE, Sort.Direction.ASC, "createdAt");
-        final var failedOutboxMessages = outboxMessageRepository
-                .findByStatusAndRetryCountLessThanEqual(OutboxMessageStatus.FAILED, retryCountThreshold, pageRequest);
-        failedOutboxMessages.forEach(message -> sendAndMarkAsSent(message));
+        var page = 0;
+        while (true) {
+            final var pageRequest = PageRequest.of(page, QUERY_RESULT_PAGE_SIZE, Sort.Direction.ASC, "createdAt");
+            final var failedMessages = outboxMessageRepository
+                    .findByStatusAndRetryCountLessThanEqual(OutboxMessageStatus.FAILED, retryCountThreshold, pageRequest);
+            if (failedMessages.isEmpty()) {
+                break;
+            }
+            failedMessages.forEach(this::sendAndMarkAsSent);
+            page++;
+        }
 
-        final var messagesThatCouldNotBeSent = outboxMessageRepository.findMessagesThatCouldNotBeSent(
-                LocalDateTime.now().minus(QUERY_DELAY_FOR_MESSAGE_THAT_COULD_NOT_BE_SENT, ChronoUnit.SECONDS),
-                pageRequest);
+        log.debug("Not sent outbox messages is publishing again!");
+        page = 0;
+        while (true) {
+            final var pageRequest = PageRequest.of(page, QUERY_RESULT_PAGE_SIZE, Sort.Direction.ASC, "createdAt");
+            final var messagesThatCouldNotBeSent = outboxMessageRepository.findMessagesThatCouldNotBeSent(
+                    LocalDateTime.now().minus(QUERY_DELAY_FOR_MESSAGE_THAT_COULD_NOT_BE_SENT, ChronoUnit.SECONDS),
+                    pageRequest);
 
-        messagesThatCouldNotBeSent.forEach(message -> sendAndMarkAsSent(message));
+            if (messagesThatCouldNotBeSent.isEmpty()) {
+                break;
+            }
+            messagesThatCouldNotBeSent.forEach(this::sendAndMarkAsSent);
+            page++;
+        }
+    }
+
+    @Override
+    @Transactional
+    public void maintenanceToOutboxMessages() {
+        log.debug("Maintenance process is starting!");
+        publishAllFailedMessages();
+        log.debug("Outbox messages is cleaning up! Message lifetime is {}!", messageLifetimeInDays);
+        final var deletedMessageCount =
+                outboxMessageRepository.deleteOldOutboxMessages(LocalDateTime.now().minus(messageLifetimeInDays, ChronoUnit.DAYS));
+        log.debug("{} old outbox messages deleted!", deletedMessageCount);
     }
 
     private void sendAndMarkAsSent(OutboxMessage outboxMessage) {

@@ -177,12 +177,25 @@
         </plugins>
     </build>
 
-    <distributionManagement>
+    <!--<distributionManagement>
         <repository>
             <id>github</id>
             <name>GitHub Packages</name>
             <url>https://maven.pkg.github.com/dilaverdemirel/spring-cloud-stream-outbox-extension</url>
         </repository>
+    </distributionManagement>-->
+
+    <distributionManagement>
+        <repository>
+            <id>central</id>
+            <!--<url>http://artifactory.smarty360.com/artifactory/libs-release-local/</url>-->
+            <url>http://ec2-18-184-240-249.eu-central-1.compute.amazonaws.com/artifactory/libs-release-local/</url>
+        </repository>
+        <snapshotRepository>
+            <id>snapshots</id>
+            <!--<url>http://artifactory.smarty360.com/artifactory/libs-snapshot-local/</url>-->
+            <url>http://ec2-18-184-240-249.eu-central-1.compute.amazonaws.com/artifactory/libs-snapshot-local/</url>
+        </snapshotRepository>
     </distributionManagement>
 
 </project>

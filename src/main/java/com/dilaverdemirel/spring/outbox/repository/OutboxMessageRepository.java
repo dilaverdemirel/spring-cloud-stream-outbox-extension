@@ -21,4 +21,7 @@ public interface OutboxMessageRepository extends CrudRepository<OutboxMessage, S
 
     @Query("select m from OutboxMessage as m where m.createdAt <= :delayStart and m.status = 'NEW'")
     Page<OutboxMessage> findMessagesThatCouldNotBeSent(@Param("delayStart") LocalDateTime delayStart, Pageable pageRequest);
+
+    @Query("delete from OutboxMessage as m where m.createdAt >= :thresholdDate")
+    long deleteOldOutboxMessages(@Param("thresholdDate") LocalDateTime thresholdDate);
 }
