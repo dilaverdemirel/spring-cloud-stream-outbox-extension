@@ -51,7 +51,7 @@ public class OutboxMessageServiceImplTest {
     public void testDeleteOldOutboxMessages_it_should_delete_old_messages() {
         //Given
         final var thresholdDate = LocalDateTime.now();
-        final var mockDeletedRecordCount = 100L;
+        final var mockDeletedRecordCount = 100;
         when(outboxMessageRepository.deleteOldOutboxMessages(thresholdDate)).thenReturn(mockDeletedRecordCount);
 
         //When

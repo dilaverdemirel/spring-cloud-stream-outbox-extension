@@ -25,5 +25,5 @@ public interface OutboxMessageRepository extends CrudRepository<OutboxMessage, S
 
     @Modifying
     @Query("delete from OutboxMessage as m where m.createdAt >= :thresholdDate")
-    long deleteOldOutboxMessages(@Param("thresholdDate") LocalDateTime thresholdDate);
+    int deleteOldOutboxMessages(@Param("thresholdDate") LocalDateTime thresholdDate);
 }

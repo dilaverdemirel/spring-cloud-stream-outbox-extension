@@ -204,7 +204,7 @@ public class OutboxMessagePublisherServiceImplTest {
         when(outboxMessageRepository.findMessagesThatCouldNotBeSent(any(LocalDateTime.class), any(Pageable.class)))
                 .thenReturn(Page.empty());
 
-        when(outboxMessageRepository.deleteOldOutboxMessages(any())).thenReturn(10L);
+        when(outboxMessageRepository.deleteOldOutboxMessages(any())).thenReturn(10);
 
         //When
         outboxMessagePublisherService.maintenanceToOutboxMessages();
