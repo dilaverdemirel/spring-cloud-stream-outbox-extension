@@ -9,7 +9,7 @@
     <version>1.0.2</version>
     <properties>
         <java.version>11</java.version>
-        <spring.version>5.1.10.RELEASE</spring.version>
+        <spring.version>5.3.19</spring.version>
         <hibernate.version>5.3.12.Final</hibernate.version>
         <spring-cloud-stream.version>2.1.4.RELEASE</spring-cloud-stream.version>
         <spring-data-jpa.version>2.1.11.RELEASE</spring-data-jpa.version>
