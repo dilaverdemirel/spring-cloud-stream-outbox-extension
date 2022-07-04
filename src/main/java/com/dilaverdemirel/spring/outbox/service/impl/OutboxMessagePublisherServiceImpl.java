@@ -5,8 +5,10 @@ import com.dilaverdemirel.spring.outbox.domain.OutboxMessageStatus;
 import com.dilaverdemirel.spring.outbox.repository.OutboxMessageRepository;
 import com.dilaverdemirel.spring.outbox.service.OutboxMessagePublisherService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.stream.binding.BinderAwareChannelResolver;
+import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.messaging.MessageHeaders;
@@ -29,16 +31,23 @@ public class OutboxMessagePublisherServiceImpl implements OutboxMessagePublisher
     private final OutboxMessageRepository outboxMessageRepository;
     private final BinderAwareChannelResolver channelResolver;
 
+    private final StreamBridge streamBridge;
+
     @Value("${dilaverdemirel.spring.outbox.failed-messages.retry-count-threshold:3}")
     protected Integer retryCountThreshold;
 
     @Value("${dilaverdemirel.spring.outbox.failed-messages.message-life-time-in-days:7}")
     protected Integer messageLifetimeInDays;
 
+    @Value("${dilaverdemirel.spring.outbox.stream.function.active:false}")
+    protected boolean isStreamFunctionActive;
+
     public OutboxMessagePublisherServiceImpl(OutboxMessageRepository outboxMessageRepository,
-                                             BinderAwareChannelResolver channelResolver) {
+                                             @Autowired(required = false) BinderAwareChannelResolver channelResolver,
+                                             @Autowired(required = false) StreamBridge streamBridge) {
         this.outboxMessageRepository = outboxMessageRepository;
         this.channelResolver = channelResolver;
+        this.streamBridge = streamBridge;
     }
 
     @Override
@@ -98,8 +107,13 @@ public class OutboxMessagePublisherServiceImpl implements OutboxMessagePublisher
 
     private void sendAndMarkAsSent(OutboxMessage outboxMessage) {
         final var messageHeaders = new MessageHeaders(Map.of(OUTBOX_MESSAGE_ID_HEADER_PARAMETER_NAME, outboxMessage.getId()));
-        channelResolver.resolveDestination(outboxMessage.getChannel())
-                .send(MessageBuilder.createMessage(outboxMessage.getPayload(), messageHeaders));
+        final var message = MessageBuilder.createMessage(outboxMessage.getPayload(), messageHeaders);
+        if (!isStreamFunctionActive) {
+            channelResolver.resolveDestination(outboxMessage.getChannel())
+                    .send(message);
+        } else {
+            streamBridge.send(outboxMessage.getChannel(), message);
+        }
 
         outboxMessage.setStatus(OutboxMessageStatus.SENT);
         outboxMessage.setSentAt(LocalDateTime.now());
