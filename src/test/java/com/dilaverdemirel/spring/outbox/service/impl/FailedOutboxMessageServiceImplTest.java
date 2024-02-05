@@ -16,7 +16,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
  * @since 8.07.2020
  */
 @ExtendWith(MockitoExtension.class)
-public class FailedOutboxMessageServiceImplTest {
+class FailedOutboxMessageServiceImplTest {
 
     @Mock
     private OutboxMessageRepository outboxMessageRepository;
@@ -33,7 +33,7 @@ public class FailedOutboxMessageServiceImplTest {
     private FailedOutboxMessageServiceImpl failedOutboxMessageService;
 
     @Test
-    public void testMarkAsFailed_it_should_set_status_as_FAILED_when_there_is_a_valid_outbox_message() {
+    void testMarkAsFailed_it_should_set_status_as_FAILED_when_there_is_a_valid_outbox_message() {
         //Given
         final var id = "message-id";
         final var exception = "exception-message";
@@ -57,7 +57,7 @@ public class FailedOutboxMessageServiceImplTest {
     }
 
     @Test
-    public void testMarkAsFailed_it_should_throw_exception_when_there_is_no_a_valid_outbox_message() {
+    void testMarkAsFailed_it_should_throw_exception_when_there_is_no_a_valid_outbox_message() {
         //Given
         final var id = "message-id";
         when(outboxMessageRepository.findById(id)).thenReturn(Optional.empty());
@@ -71,7 +71,7 @@ public class FailedOutboxMessageServiceImplTest {
     }
 
     @Test
-    public void testMarkAsFailed_it_should_do_nothing_when_id_is_blank() {
+    void testMarkAsFailed_it_should_do_nothing_when_id_is_blank() {
         //Given
         final var id = "";
 
@@ -79,7 +79,7 @@ public class FailedOutboxMessageServiceImplTest {
         failedOutboxMessageService.markAsFailedWithExceptionMessage(id, "message");
 
         //Then
-        verifyZeroInteractions(outboxMessageRepository);
+        verifyNoInteractions(outboxMessageRepository);
     }
 
     private OutboxMessage getOutboxMessage(int contentIndex) {

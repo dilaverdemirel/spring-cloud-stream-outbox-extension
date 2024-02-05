@@ -3,8 +3,8 @@ package com.dilaverdemirel.spring.outbox.service;
 import com.dilaverdemirel.spring.outbox.domain.OutboxMessage;
 import org.springframework.validation.annotation.Validated;
 
-import javax.validation.constraints.NotEmpty;
-import javax.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 import java.util.Optional;
 

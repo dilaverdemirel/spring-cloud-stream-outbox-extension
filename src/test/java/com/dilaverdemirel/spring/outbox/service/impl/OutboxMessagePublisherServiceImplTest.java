@@ -12,7 +12,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.cloud.stream.binding.BinderAwareChannelResolver;
+import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -31,7 +31,7 @@ import static com.dilaverdemirel.spring.outbox.service.OutboxMessagePublisherSer
 import static com.dilaverdemirel.spring.outbox.service.OutboxMessagePublisherService.QUERY_RESULT_PAGE_SIZE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,7 +41,7 @@ import static org.mockito.Mockito.when;
  * @since 17.05.2020
  */
 @ExtendWith(MockitoExtension.class)
-public class OutboxMessagePublisherServiceImplTest {
+class OutboxMessagePublisherServiceImplTest {
     private final static ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Mock
@@ -52,8 +52,9 @@ public class OutboxMessagePublisherServiceImplTest {
     @Mock
     private OutboxMessageRepository outboxMessageRepository;
 
+
     @Mock
-    private BinderAwareChannelResolver channelResolver;
+    private StreamBridge streamBridge;
 
     @InjectMocks
     private OutboxMessagePublisherServiceImpl outboxMessagePublisherService;
@@ -64,7 +65,7 @@ public class OutboxMessagePublisherServiceImplTest {
     }
 
     @Test
-    public void testPublishById_it_should_publish_event_when_id_is_valid() throws IOException {
+    void testPublishById_it_should_publish_event_when_id_is_valid() throws IOException {
         //Given
         final var id = "message-1";
 
@@ -75,9 +76,6 @@ public class OutboxMessagePublisherServiceImplTest {
 
         when(outboxMessageRepository.findById(id)).thenReturn(Optional.of(mockOutboxMessage));
 
-        when(channelResolver.resolveDestination(mockOutboxMessage.getChannel()))
-                .thenReturn(messageChannel);
-
         //When
         outboxMessagePublisherService.publishById(id);
 
@@ -85,7 +83,7 @@ public class OutboxMessagePublisherServiceImplTest {
         verify(outboxMessageRepository).findById(id);
 
         final var eventArgumentCaptor = ArgumentCaptor.forClass(Message.class);
-        verify(messageChannel).send(eventArgumentCaptor.capture());
+        verify(streamBridge).send(eq(mockOutboxMessage.getChannel()), eventArgumentCaptor.capture());
         final var payloadString = (String) eventArgumentCaptor.getValue().getPayload();
         final var capturedDummyMessagePayload = OBJECT_MAPPER.readValue(payloadString, DummyMessagePayload.class);
         assertThat(capturedDummyMessagePayload)
@@ -103,7 +101,7 @@ public class OutboxMessagePublisherServiceImplTest {
     }
 
     @Test
-    public void testPublishAllFailedMessages_it_should_publish_when_there_are_some_failed_messages() {
+    void testPublishAllFailedMessages_it_should_publish_when_there_are_some_failed_messages() {
         //Given
         final List<OutboxMessage> outboxMessages = getOutboxMessages();
 
@@ -112,9 +110,6 @@ public class OutboxMessagePublisherServiceImplTest {
                 .findByStatusAndRetryCountLessThanEqual(any(OutboxMessageStatus.class), any(Integer.class), any(Pageable.class)))
                 .thenReturn(outboxMessagePage)
                 .thenReturn(Page.empty());
-
-        when(channelResolver.resolveDestination(anyString()))
-                .thenReturn(messageChannel);
 
         when(outboxMessageRepository.findMessagesThatCouldNotBeSent(any(LocalDateTime.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(Collections.emptyList()));
@@ -148,7 +143,7 @@ public class OutboxMessagePublisherServiceImplTest {
     }
 
     @Test
-    public void testPublishAllFailedMessages_it_should_publish_when_there_are_some_messages_could_not_be_sent() {
+    void testPublishAllFailedMessages_it_should_publish_when_there_are_some_messages_could_not_be_sent() {
         //Given
         final List<OutboxMessage> outboxMessages = getOutboxMessages();
 
@@ -156,9 +151,6 @@ public class OutboxMessagePublisherServiceImplTest {
         when(outboxMessageRepository
                 .findByStatusAndRetryCountLessThanEqual(any(OutboxMessageStatus.class), any(Integer.class), any(Pageable.class)))
                 .thenReturn(Page.empty());
-
-        when(channelResolver.resolveDestination(anyString()))
-                .thenReturn(messageChannel);
 
         when(outboxMessageRepository.findMessagesThatCouldNotBeSent(any(LocalDateTime.class), any(Pageable.class)))
                 .thenReturn(outboxMessagePage)
@@ -193,7 +185,7 @@ public class OutboxMessagePublisherServiceImplTest {
     }
 
     @Test
-    public void testMaintenanceToOutboxMessages_it_should_clear_old_messages() {
+    void testMaintenanceToOutboxMessages_it_should_clear_old_messages() {
         //Given
         outboxMessagePublisherService.messageLifetimeInDays = 7;
         final var outboxMessagePage = new PageImpl<OutboxMessage>(Collections.emptyList());
@@ -222,7 +214,8 @@ public class OutboxMessagePublisherServiceImplTest {
 
     private void validateSentMessages(List<OutboxMessage> outboxMessages) {
         final var sentMessagesArgumentCaptor = ArgumentCaptor.forClass(Message.class);
-        verify(messageChannel, times(3)).send(sentMessagesArgumentCaptor.capture());
+        final var channelArgumentCaptor = ArgumentCaptor.forClass(String.class);
+        verify(streamBridge, times(3)).send(channelArgumentCaptor.capture(), sentMessagesArgumentCaptor.capture());
         final var sentMessagesArgumentCaptorAllValues = sentMessagesArgumentCaptor.getAllValues();
 
         final var savedMessagesArgumentCaptor = ArgumentCaptor.forClass(OutboxMessage.class);
@@ -245,6 +238,8 @@ public class OutboxMessagePublisherServiceImplTest {
 
             final var messageIdHeader = capturedSentMessage.getHeaders().get(OUTBOX_MESSAGE_ID_HEADER_PARAMETER_NAME);
             assertThat(messageIdHeader).isEqualTo("outbox-id");
+
+            assertThat(channelArgumentCaptor.getAllValues().get(i)).isEqualTo(outboxMessageForVerification.getChannel());
         }
     }
 

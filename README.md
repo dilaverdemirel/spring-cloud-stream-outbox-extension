@@ -38,7 +38,7 @@ You should add the dependency below to pom.xml file.
 <dependency>
   <groupId>com.dilaverdemirel.spring</groupId>
   <artifactId>spring-cloud-stream-outbox-extension</artifactId>
-  <version>1.0.1</version>
+  <version>1.0.4</version>
 </dependency>
 ```
 

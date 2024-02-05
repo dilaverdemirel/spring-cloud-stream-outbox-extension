@@ -7,7 +7,6 @@ import com.dilaverdemirel.spring.outbox.service.OutboxMessagePublisherService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cloud.stream.binding.BinderAwareChannelResolver;
 import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -17,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Map;
 
 /**
@@ -29,7 +27,6 @@ import java.util.Map;
 public class OutboxMessagePublisherServiceImpl implements OutboxMessagePublisherService {
 
     private final OutboxMessageRepository outboxMessageRepository;
-    private final BinderAwareChannelResolver channelResolver;
 
     private final StreamBridge streamBridge;
 
@@ -39,14 +36,9 @@ public class OutboxMessagePublisherServiceImpl implements OutboxMessagePublisher
     @Value("${dilaverdemirel.spring.outbox.failed-messages.message-life-time-in-days:7}")
     protected Integer messageLifetimeInDays;
 
-    @Value("${dilaverdemirel.spring.outbox.stream.function.active:false}")
-    protected boolean isStreamFunctionActive;
-
     public OutboxMessagePublisherServiceImpl(OutboxMessageRepository outboxMessageRepository,
-                                             @Autowired(required = false) BinderAwareChannelResolver channelResolver,
                                              @Autowired(required = false) StreamBridge streamBridge) {
         this.outboxMessageRepository = outboxMessageRepository;
-        this.channelResolver = channelResolver;
         this.streamBridge = streamBridge;
     }
 
@@ -83,7 +75,7 @@ public class OutboxMessagePublisherServiceImpl implements OutboxMessagePublisher
         while (true) {
             final var pageRequest = PageRequest.of(page, QUERY_RESULT_PAGE_SIZE, Sort.Direction.ASC, "createdAt");
             final var messagesThatCouldNotBeSent = outboxMessageRepository.findMessagesThatCouldNotBeSent(
-                    LocalDateTime.now().minus(QUERY_DELAY_FOR_MESSAGE_THAT_COULD_NOT_BE_SENT, ChronoUnit.SECONDS),
+                    LocalDateTime.now().minusSeconds(QUERY_DELAY_FOR_MESSAGE_THAT_COULD_NOT_BE_SENT),
                     pageRequest);
 
             if (messagesThatCouldNotBeSent.isEmpty()) {
@@ -101,19 +93,15 @@ public class OutboxMessagePublisherServiceImpl implements OutboxMessagePublisher
         publishAllFailedMessages();
         log.debug("Outbox messages is cleaning up! Message lifetime is {}!", messageLifetimeInDays);
         final var deletedMessageCount =
-                outboxMessageRepository.deleteOldOutboxMessages(LocalDateTime.now().minus(messageLifetimeInDays, ChronoUnit.DAYS));
+                outboxMessageRepository.deleteOldOutboxMessages(LocalDateTime.now().minusDays(messageLifetimeInDays));
         log.debug("{} old outbox messages deleted!", deletedMessageCount);
     }
 
     private void sendAndMarkAsSent(OutboxMessage outboxMessage) {
         final var messageHeaders = new MessageHeaders(Map.of(OUTBOX_MESSAGE_ID_HEADER_PARAMETER_NAME, outboxMessage.getId()));
         final var message = MessageBuilder.createMessage(outboxMessage.getPayload(), messageHeaders);
-        if (!isStreamFunctionActive) {
-            channelResolver.resolveDestination(outboxMessage.getChannel())
-                    .send(message);
-        } else {
-            streamBridge.send(outboxMessage.getChannel(), message);
-        }
+
+        streamBridge.send(outboxMessage.getChannel(), message);
 
         outboxMessage.setStatus(OutboxMessageStatus.SENT);
         outboxMessage.setSentAt(LocalDateTime.now());
